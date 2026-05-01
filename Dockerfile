@@ -141,7 +141,7 @@ COPY --from=glibc /var/install/glibc /var/install/gcc/sysroot
 RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
         --disable-bootstrap \
         --enable-default-pie \
-        --enable-languages=c,c++,lto \
+        --enable-languages=c,c++,fortran,lto \
         --disable-multilib \
         --prefix=/var/install/gcc \
         --enable-libstdcxx-threads \

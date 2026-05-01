@@ -9,6 +9,10 @@ downloaded through GCC's `contrib/download_prerequisites` script, and binutils i
 `binutils-with-gold` release archive so the final toolchain includes the GNU linker set expected by
 the Bazel toolchain package.
 
+The build enables C, C++, Fortran, and LTO. Fortran is included because the Bazel `gcc_toolchain`
+module declares `bin/gfortran` as part of the generated toolchain repository even for C and C++
+compilation actions.
+
 ## Building the Toolchains
 
 Use the `build.sh` script to build the sysroots and GCC binaries using Docker. The current
