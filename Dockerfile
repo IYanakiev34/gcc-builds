@@ -20,6 +20,11 @@ FROM ubuntu:22.04 AS base_image
 WORKDIR /bin
 SHELL ["/bin/bash", "-c"]
 
+ARG GCC_VERSION
+ARG GCC_SHA512=b3454958891ab47e1e5b6cb9396c0ad3b04f32fe2a7bf1153a143f21013fdb6b295ca94c98964698a688e4c1d7555ffd8ffbc20187507cce6b1c32cbcc09897a
+ARG BINUTILS_VERSION=2.46
+ARG BINUTILS_SHA512=20540d217cd57c53bc51151046b3e406ee75b80917c9b0b6c37aafaf61702ea4caec533b5554f4dea12e6e211452a6adbaa02004fec12c56e0ef31028acc427a
+
 WORKDIR /
 RUN apt-get update \
         && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install --yes \
@@ -58,59 +63,25 @@ RUN curl --fail-early --location https://ftp.gnu.org/gnu/glibc/glibc-2.26.tar.xz
 
 FROM base_image AS gcc_download
 ARG GCC_VERSION
+ARG GCC_SHA512=b3454958891ab47e1e5b6cb9396c0ad3b04f32fe2a7bf1153a143f21013fdb6b295ca94c98964698a688e4c1d7555ffd8ffbc20187507cce6b1c32cbcc09897a
 WORKDIR /downloads/gcc
-RUN curl --fail-early --location https://ftp.gnu.org/gnu/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz \
-        | tar --xz --extract --strip-components=1 --file -
+RUN if [ -z "${GCC_VERSION}" ]; then >&2 echo "Missing GCC_VERSION argument"; exit 1; fi \
+        && curl --fail-early --location --output gcc.tar.xz \
+            "https://sourceware.org/pub/gcc/releases/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz" \
+        && echo "${GCC_SHA512}  gcc.tar.xz" | sha512sum --check - \
+        && tar --xz --extract --strip-components=1 --file gcc.tar.xz \
+        && rm gcc.tar.xz
 RUN ./contrib/download_prerequisites
 
-FROM base_image AS util-macros_download
-WORKDIR /downloads/util-macros
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/util/util-macros-1.17.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS xproto_download
-WORKDIR /downloads/xproto
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/proto/xproto-7.0.23.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS xextproto_download
-WORKDIR /downloads/xextproto
-RUN curl --fail-early --location https://www.x.org/releases/individual/proto/xextproto-7.3.0.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS kbproto_download
-WORKDIR /downloads/kbproto
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/proto/kbproto-1.0.6.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS inputproto_download
-WORKDIR /downloads/inputproto
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/proto/inputproto-2.2.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS xcb-proto_download
-WORKDIR /downloads/xcb-proto
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/xcb/xcb-proto-1.7.1.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS libXau_download
-WORKDIR /downloads/libXau
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/lib/libXau-1.0.7.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS xtrans_download
-WORKDIR /downloads/xtrans
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/lib/xtrans-1.2.7.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS libxcb_download
-WORKDIR /downloads/libxcb
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/xcb/libxcb-1.8.1.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS libpthread-stubs_download
-WORKDIR /downloads/libpthread-stubs
-RUN curl --fail-early --location https://www.x.org/releases/individual/xcb/libpthread-stubs-0.4.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
-FROM base_image AS libX11_download
-WORKDIR /downloads/libX11
-RUN curl --fail-early --location https://www.x.org/releases/X11R7.7/src/lib/libX11-1.5.0.tar.gz \
-        | tar --gzip --extract --strip-components=1 --file -
 FROM base_image AS binutils_download
+ARG BINUTILS_VERSION=2.46
+ARG BINUTILS_SHA512=20540d217cd57c53bc51151046b3e406ee75b80917c9b0b6c37aafaf61702ea4caec533b5554f4dea12e6e211452a6adbaa02004fec12c56e0ef31028acc427a
 WORKDIR /downloads/binutils
-RUN curl --fail-early --location https://ftp.gnu.org/gnu/binutils/binutils-2.44.tar.xz \
-        | tar --xz --extract --strip-components=1 --file -
+RUN curl --fail-early --location --output binutils.tar.xz \
+            "https://sourceware.org/pub/binutils/releases/binutils-with-gold-${BINUTILS_VERSION}.tar.xz" \
+        && echo "${BINUTILS_SHA512}  binutils.tar.xz" | sha512sum --check - \
+        && tar --xz --extract --strip-components=1 --file binutils.tar.xz \
+        && rm binutils.tar.xz
 FROM base_image AS patchelf_download
 WORKDIR /downloads/patchelf
 RUN curl --fail-early --location https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0-x86_64.tar.gz \
@@ -118,17 +89,6 @@ RUN curl --fail-early --location https://github.com/NixOS/patchelf/releases/down
 
 FROM base_image AS build_image
 
-WORKDIR /opt/gcc/aarch64
-RUN curl --fail-early --location https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--glibc--stable-2018.11-1.tar.bz2 \
-        | tar --bzip --extract --strip-components=1 --file -
-WORKDIR /opt/gcc/aarch64/bin
-RUN rm pkg-config
-WORKDIR /opt/gcc/armv7
-RUN curl --fail-early --location https://toolchains.bootlin.com/downloads/releases/toolchains/armv7-eabihf/tarballs/armv7-eabihf--glibc--stable-2018.11-1.tar.bz2 \
-        | tar --bzip --extract --strip-components=1 --file -
-WORKDIR /opt/gcc/armv7/bin
-RUN rm pkg-config
-RUN --mount=source=create_symlinks.sh,target=/usr/bin/create_symlinks.sh create_symlinks.sh arm-linux- arm-linux-gnueabihf-
 WORKDIR /opt/gcc/x86_64
 RUN curl --fail-early --location https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64-core-i7/tarballs/x86-64-core-i7--glibc--stable-2018.11-1.tar.bz2 \
         | tar --bzip --extract --strip-components=1 --file -
@@ -144,9 +104,10 @@ WORKDIR /
 ARG ARCH
 ENV ARCH="${ARCH}"
 RUN if [ -z "${ARCH}" ]; then >&2 echo "Missing ARCH argument"; exit 1; fi
+RUN if [[ "${ARCH}" != "x86_64" ]]; then >&2 echo "Only x86_64 is supported"; exit 1; fi
 RUN rm --force /lib/cpp && ln --symbolic "/opt/gcc/${ARCH}/bin/${ARCH}-linux-cpp.br_real" /lib/cpp
 
-ENV PATH="/opt/gcc/x86_64/bin:/opt/gcc/${ARCH}/bin:${PATH}"
+ENV PATH="/opt/gcc/x86_64/bin:${PATH}"
 
 ####################################################################################################
 # Build steps
@@ -180,7 +141,7 @@ COPY --from=glibc /var/install/glibc /var/install/gcc/sysroot
 RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
         --disable-bootstrap \
         --enable-default-pie \
-        --enable-languages=c,c++,fortran,lto \
+        --enable-languages=c,c++,lto \
         --disable-multilib \
         --prefix=/var/install/gcc \
         --enable-libstdcxx-threads \
@@ -217,110 +178,6 @@ RUN make --jobs $(nproc)
 RUN make install
 
 ####################################################################################################
-# Extra libs
-####################################################################################################
-
-FROM build_image AS libX11
-COPY --from=gcc /var/install/gcc /var/install/gcc
-ENV PATH="/var/install/gcc/bin:${PATH}"
-
-WORKDIR /build/util-macros/build
-COPY --from=util-macros_download /downloads/util-macros /build/util-macros
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/xproto/build
-COPY --from=xproto_download /downloads/xproto /build/xproto
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/xextproto/build
-COPY --from=xextproto_download /downloads/xextproto /build/xextproto
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/kbproto/build
-COPY --from=kbproto_download /downloads/kbproto /build/kbproto
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/inputproto/build
-COPY --from=inputproto_download /downloads/inputproto /build/inputproto
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/xcb-proto/build
-COPY --from=xcb-proto_download /downloads/xcb-proto /build/xcb-proto
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/libXau/build
-COPY --from=libXau_download /downloads/libXau /build/libXau
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/xtrans/build
-COPY --from=xtrans_download /downloads/xtrans /build/xtrans
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/libpthread-stubs/build
-COPY --from=libpthread-stubs_download /downloads/libpthread-stubs /build/libpthread-stubs
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/libxcb/build
-COPY --from=libxcb_download /downloads/libxcb /build/libxcb
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-WORKDIR /build/libX11/build
-COPY --from=libX11_download /downloads/libX11 /build/libX11
-RUN --mount=source=configure.sh,target=/usr/bin/configure.sh IS_GCC_BUILD=1 configure.sh \
-        || (cat config.log && exit 1)
-RUN make --jobs $(nproc)
-RUN make install
-RUN make DESTDIR=/var/install/libX11 install
-
-# Rename /var/install/libX11/usr/local to /var/install/libX11/usr, i.e. remove the "local" segment.
-# We do this instead of setting the prefix to /usr to make the whole dependency resolution of the
-# libX11 build simpler. We do not want to have /usr/local in the include and lib paths, as it is not
-# part of the default include and lib paths of GCC.
-RUN mv /var/install/libX11/usr/local /var/install/libX11/usr.tmp
-RUN rm --recursive /var/install/libX11/usr
-RUN mv /var/install/libX11/usr.tmp /var/install/libX11/usr
-
-####################################################################################################
 # Assemble final toolchain
 ####################################################################################################
 
@@ -328,11 +185,9 @@ FROM build_image AS toolchain
 
 COPY --from=gcc /var/install/gcc /var/install/gcc
 COPY --from=binutils /var/install/binutils /var/install/binutils
-COPY --from=libX11 /var/install/libX11 /var/install/libX11
 RUN mkdir --parents /var/builds/toolchain \
         && rsync --archive /var/install/gcc/ /var/builds/toolchain/ \
-        && rsync --archive /var/install/binutils/* /var/builds/toolchain/ \
-        && rsync --archive /var/install/libX11/* /var/builds/toolchain/sysroot/
+        && rsync --archive /var/install/binutils/* /var/builds/toolchain/
 RUN --mount=source=dedup,target=/usr/bin/dedup dedup /var/builds/toolchain
 
 # We patch the shared libraries to set the rpath to $ORIGIN, so that during runtime the

@@ -21,27 +21,31 @@ usage() {
     echo "Usage: $0 <gcc_version> <arch> <output_dir>"
     echo ""
     echo "  gcc_version  GCC version to build"
-    echo "  arch         Target architecture (x86_64, armv7, aarch64)"
+    echo "  arch         Target architecture (x86_64)"
     echo "  output_dir   Directory where the toolchain archive will be saved"
     echo ""
     echo "Examples:"
-    echo "  $0 14.3.0 x86_64 ."
-    echo "  $0 13.2.0 aarch64 ."
+    echo "  $0 16.1.0 x86_64 ."
     echo ""
     echo "Output format: gcc-toolchain-{gcc_version}-{arch}.tar.xz"
 }
 
-readonly gcc_version=$1
-readonly arch=$2
-readonly output_dir=$3
-
 set -o errexit -o nounset -o pipefail
+
+readonly default_gcc_version="16.1.0"
+readonly default_gcc_sha512="b3454958891ab47e1e5b6cb9396c0ad3b04f32fe2a7bf1153a143f21013fdb6b295ca94c98964698a688e4c1d7555ffd8ffbc20187507cce6b1c32cbcc09897a"
+readonly default_binutils_version="2.46"
+readonly default_binutils_sha512="20540d217cd57c53bc51151046b3e406ee75b80917c9b0b6c37aafaf61702ea4caec533b5554f4dea12e6e211452a6adbaa02004fec12c56e0ef31028acc427a"
 
 # Handle help flag
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     usage
     exit 0
 fi
+
+readonly gcc_version="${1:-}"
+readonly arch="${2:-}"
+readonly output_dir="${3:-}"
 
 if [ -z "${gcc_version}" ]; then
     >&2 echo "ERROR: the first argument of the script must be the GCC version."
@@ -64,12 +68,24 @@ if [ -z "${output_dir}" ]; then
     exit 1
 fi
 
+gcc_sha512="${GCC_SHA512:-}"
+if [ -z "${gcc_sha512}" ]; then
+    if [[ "${gcc_version}" != "${default_gcc_version}" ]]; then
+        >&2 echo "ERROR: GCC_SHA512 must be set when building GCC ${gcc_version}."
+        exit 1
+    fi
+    gcc_sha512="${default_gcc_sha512}"
+fi
+
+binutils_version="${BINUTILS_VERSION:-${default_binutils_version}}"
+binutils_sha512="${BINUTILS_SHA512:-${default_binutils_sha512}}"
+
 # Validate architecture
 case "${arch}" in
-    x86_64|armv7|aarch64)
+    x86_64)
         ;;
     *)
-        >&2 echo "ERROR: unsupported architecture '${arch}'. Supported architectures: x86_64, armv7, aarch64"
+        >&2 echo "ERROR: unsupported architecture '${arch}'. Supported architecture: x86_64"
         >&2 echo ""
         usage
         exit 1
@@ -86,12 +102,15 @@ echo "INFO: building toolchain inside container..."
 project_dir="$(git rev-parse --show-toplevel)"
 build_dir="${project_dir}"
 output=$(realpath "${output_dir}/${output_filename}")
-image_tag=$(tr '[:upper:]' '[:lower:]' <<<"${arch}")
+image_tag="gcc-toolchain-${gcc_version}-${arch}"
 
 (cd "${build_dir}"; \
     docker build \
         --build-arg ARCH="${arch}" \
         --build-arg GCC_VERSION="${gcc_version}" \
+        --build-arg GCC_SHA512="${gcc_sha512}" \
+        --build-arg BINUTILS_VERSION="${binutils_version}" \
+        --build-arg BINUTILS_SHA512="${binutils_sha512}" \
         --tag "${image_tag}" \
         --target toolchain \
         .)
